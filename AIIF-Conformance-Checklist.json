@@ -1,0 +1,189 @@
+{
+  "aiif_version": "1.0",
+  "profile": "aiif-conformance-checklist",
+  "description": "Machine-checkable conformance checklist for AIIF v1.0 implementations and agents.",
+  "checks": [
+    {
+      "id": "impl.endpoints.required",
+      "category": "implementation",
+      "level": "MUST",
+      "spec_section": "9",
+      "description": "Expose GET /ai-docs, GET /ai-docs/{endpoint}, and GET /ai-docs/summary."
+    },
+    {
+      "id": "impl.top_level.required_fields",
+      "category": "implementation",
+      "level": "MUST",
+      "spec_section": "3.1",
+      "description": "Top-level document includes aiif_version, info, and endpoints."
+    },
+    {
+      "id": "impl.endpoint_name.unique",
+      "category": "implementation",
+      "level": "MUST",
+      "spec_section": "3.5",
+      "description": "All endpoint name values are unique."
+    },
+    {
+      "id": "impl.method_path.unique",
+      "category": "implementation",
+      "level": "MUST",
+      "spec_section": "3.5",
+      "description": "All (method, path) endpoint pairs are unique."
+    },
+    {
+      "id": "impl.params.unique_by_name_location",
+      "category": "implementation",
+      "level": "MUST",
+      "spec_section": "3.5",
+      "description": "Within an endpoint, params are unique by (name, location)."
+    },
+    {
+      "id": "impl.summary.includes_core_fields",
+      "category": "implementation",
+      "level": "MUST",
+      "spec_section": "9.3",
+      "description": "Summary entries include name, method, path, description, auth_required."
+    },
+    {
+      "id": "impl.params.constraints_published",
+      "category": "implementation",
+      "level": "SHOULD",
+      "spec_section": "5.1",
+      "description": "Publish machine-readable parameter constraints (minimum, maximum, min_length, max_length, pattern, format) when needed to avoid inference."
+    },
+    {
+      "id": "impl.endpoint_lookup.case_sensitive",
+      "category": "implementation",
+      "level": "MUST",
+      "spec_section": "9.2",
+      "description": "Endpoint lookup for /ai-docs/{endpoint} is exact and case-sensitive."
+    },
+    {
+      "id": "impl.auth_docs.required_for_protected",
+      "category": "implementation",
+      "level": "MUST",
+      "spec_section": "9.4",
+      "description": "Expose GET /ai-docs/auth when auth.type is not none."
+    },
+    {
+      "id": "impl.auth_flow.structured_fields",
+      "category": "implementation",
+      "level": "SHOULD",
+      "spec_section": "3.3",
+      "description": "For bearer/oauth2 auth, provide instructions plus acquire/apply flow metadata."
+    },
+    {
+      "id": "impl.endpoint.auth_required_supported",
+      "category": "implementation",
+      "level": "SHOULD",
+      "spec_section": "4.1",
+      "description": "Endpoints provide auth_required for explicit protected/public behavior."
+    },
+    {
+      "id": "impl.endpoint.response_content_type_supported",
+      "category": "implementation",
+      "level": "SHOULD",
+      "spec_section": "4.1",
+      "description": "Endpoints provide response_content_type when successful responses are not JSON."
+    },
+    {
+      "id": "impl.agent_rules.consistent",
+      "category": "implementation",
+      "level": "SHOULD",
+      "spec_section": "3.6",
+      "description": "agent_rules is present as plain-English string array and consistent across docs responses."
+    },
+    {
+      "id": "agent.discovery.before_call",
+      "category": "agent",
+      "level": "MUST",
+      "spec_section": "8.1",
+      "description": "Discover endpoints from /ai-docs/summary before operation calls."
+    },
+    {
+      "id": "agent.no_undocumented_endpoints",
+      "category": "agent",
+      "level": "MUST",
+      "spec_section": "8.1",
+      "description": "Do not call endpoints not documented in endpoints array."
+    },
+    {
+      "id": "agent.required_param_compliance",
+      "category": "agent",
+      "level": "MUST",
+      "spec_section": "8.2",
+      "description": "Provide all required parameters and honor documented locations and declared parameter constraints."
+    },
+    {
+      "id": "agent.request_schema_compliance",
+      "category": "agent",
+      "level": "MUST",
+      "spec_section": "8.3",
+      "description": "Construct request body only when defined and conform to schema."
+    },
+    {
+      "id": "agent.response_schema_validation",
+      "category": "agent",
+      "level": "MUST",
+      "spec_section": "8.4",
+      "description": "Validate successful responses against declared response schema."
+    },
+    {
+      "id": "agent.error_handling_422",
+      "category": "agent",
+      "level": "MUST",
+      "spec_section": "8.5",
+      "description": "Do not retry 422 responses without correcting input."
+    },
+    {
+      "id": "agent.error_handling_429",
+      "category": "agent",
+      "level": "MUST",
+      "spec_section": "8.5",
+      "description": "Respect Retry-After on 429; if missing, apply fallback wait."
+    },
+    {
+      "id": "agent.error_handling_403",
+      "category": "agent",
+      "level": "MUST",
+      "spec_section": "8.5",
+      "description": "Do not retry 403 responses without changed authorization."
+    },
+    {
+      "id": "agent.global_rules_consumption",
+      "category": "agent",
+      "level": "SHOULD",
+      "spec_section": "8.8",
+      "description": "Consume agent_rules and treat each instruction as API-specific behavioral guidance."
+    },
+    {
+      "id": "agent.auth_docs.before_protected_calls",
+      "category": "agent",
+      "level": "SHOULD",
+      "spec_section": "8.6",
+      "description": "Load /ai-docs/auth before first protected call when auth.type is not none."
+    },
+    {
+      "id": "agent.auth_refresh.before_expiry",
+      "category": "agent",
+      "level": "SHOULD",
+      "spec_section": "8.6",
+      "description": "Refresh or re-authenticate credentials before expiry using documented auth flow."
+    },
+    {
+      "id": "agent.auth_required_behavior",
+      "category": "agent",
+      "level": "MUST",
+      "spec_section": "8.6",
+      "description": "Honor endpoint auth_required when deciding whether to attach credentials."
+    },
+    {
+      "id": "agent.response_content_type_behavior",
+      "category": "agent",
+      "level": "MUST",
+      "spec_section": "8.4",
+      "description": "Parse successful responses using endpoint response_content_type when present, defaulting to JSON otherwise."
+    }
+  ]
+}

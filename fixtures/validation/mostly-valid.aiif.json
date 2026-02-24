@@ -1,0 +1,48 @@
+{
+  "aiif_version": "1.0",
+  "info": {
+    "name": "Fixture Mostly Valid API",
+    "description": "Passes MUST checks but intentionally misses some SHOULD recommendations.",
+    "base_url": "https://api.example.com/v1"
+  },
+  "auth": {
+    "type": "none",
+    "description": "Public API without auth."
+  },
+  "endpoints": [
+    {
+      "name": "list_items",
+      "method": "GET",
+      "path": "/items",
+      "description": "List items.",
+      "params": [
+        {
+          "name": "limit",
+          "location": "query",
+          "type": "number",
+          "required": false,
+          "description": "Max number of items to return."
+        }
+      ],
+      "response": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" }
+          },
+          "required": ["id"]
+        }
+      },
+      "errors": ["rate_limited"]
+    }
+  ],
+  "errors": {
+    "rate_limited": {
+      "code": "rate_limited",
+      "http_status": 429,
+      "message": "Too Many Requests",
+      "description": "Request quota exceeded."
+    }
+  }
+}

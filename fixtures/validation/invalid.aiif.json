@@ -1,0 +1,57 @@
+{
+  "aiif_version": "",
+  "info": {
+    "name": "Fixture Invalid API",
+    "description": "Intentionally invalid AIIF fixture.",
+    "base_url": "https://api.example.com/v1"
+  },
+  "auth": {
+    "type": "bearer",
+    "description": "Bearer auth"
+  },
+  "endpoints": [
+    {
+      "name": "get_data",
+      "method": "GET",
+      "path": "/data",
+      "description": "Get data.",
+      "params": [
+        {
+          "name": "id",
+          "location": "query",
+          "type": "string",
+          "required": true,
+          "description": "Identifier."
+        },
+        {
+          "name": "id",
+          "location": "query",
+          "type": "string",
+          "required": true,
+          "description": "Duplicate identifier parameter."
+        }
+      ],
+      "response": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" }
+        },
+        "required": ["ok"]
+      }
+    },
+    {
+      "name": "get_data",
+      "method": "GET",
+      "path": "/data",
+      "description": "Duplicate endpoint name and method/path.",
+      "params": [],
+      "response": {
+        "type": "object",
+        "properties": {
+          "ok": { "type": "boolean" }
+        },
+        "required": ["ok"]
+      }
+    }
+  ]
+}

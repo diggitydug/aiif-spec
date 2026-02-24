@@ -1,0 +1,5 @@
+# Ignore Windows executables
+*.exe
+
+# Ignore local tool binaries (e.g., jq.exe)
+tools/bin/
