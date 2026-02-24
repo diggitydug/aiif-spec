@@ -49,20 +49,41 @@ jobs:
       - name: Run PowerShell validator checks
         shell: pwsh
         run: |
-          ./tools/validate-aiif.ps1 -Aiif fixtures/validation/valid.aiif.json
-          if ($LASTEXITCODE -ne 0) { throw "valid fixture should pass" }
+          function Invoke-AiifValidator {
+            param(
+              [string]$Aiif,
+              [switch]$StrictShould
+            )
 
-          ./tools/validate-aiif.ps1 -Aiif fixtures/validation/mostly-valid.aiif.json
-          if ($LASTEXITCODE -ne 0) { throw "mostly-valid fixture should pass in non-strict mode" }
+            $args = @(
+              '-NoProfile',
+              '-ExecutionPolicy', 'Bypass',
+              '-File', 'tools/validate-aiif.ps1',
+              '-Aiif', $Aiif
+            )
 
-          ./tools/validate-aiif.ps1 -Aiif AIIF-Minimal-Compliant.aiif.json -StrictShould
-          if ($LASTEXITCODE -ne 0) { throw "minimal compliant fixture should pass strict mode" }
+            if ($StrictShould) {
+              $args += '-StrictShould'
+            }
 
-          ./tools/validate-aiif.ps1 -Aiif fixtures/validation/invalid.aiif.json
-          if ($LASTEXITCODE -ne 1) { throw "invalid fixture should fail with exit 1" }
+            & pwsh @args
+            return $LASTEXITCODE
+          }
 
-          ./tools/validate-aiif.ps1 -Aiif fixtures/validation/mostly-valid.aiif.json -StrictShould
-          if ($LASTEXITCODE -ne 1) { throw "mostly-valid fixture should fail with exit 1 in strict mode" }
+          $code = Invoke-AiifValidator -Aiif 'fixtures/validation/valid.aiif.json'
+          if ($code -ne 0) { throw "valid fixture should pass (got $code)" }
+
+          $code = Invoke-AiifValidator -Aiif 'fixtures/validation/mostly-valid.aiif.json'
+          if ($code -ne 0) { throw "mostly-valid fixture should pass in non-strict mode (got $code)" }
+
+          $code = Invoke-AiifValidator -Aiif 'AIIF-Minimal-Compliant.aiif.json' -StrictShould
+          if ($code -ne 0) { throw "minimal compliant fixture should pass strict mode (got $code)" }
+
+          $code = Invoke-AiifValidator -Aiif 'fixtures/validation/invalid.aiif.json'
+          if ($code -ne 1) { throw "invalid fixture should fail with exit 1 (got $code)" }
+
+          $code = Invoke-AiifValidator -Aiif 'fixtures/validation/mostly-valid.aiif.json' -StrictShould
+          if ($code -ne 1) { throw "mostly-valid fixture should fail with exit 1 in strict mode (got $code)" }
 
   validate-bash:
     name: Validate (Bash)
