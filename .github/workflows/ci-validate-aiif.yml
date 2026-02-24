@@ -66,8 +66,8 @@ jobs:
               $args += '-StrictShould'
             }
 
-            & pwsh @args
-            return $LASTEXITCODE
+            & pwsh @args | Out-Host
+            return [int]$LASTEXITCODE
           }
 
           $code = Invoke-AiifValidator -Aiif 'fixtures/validation/valid.aiif.json'
