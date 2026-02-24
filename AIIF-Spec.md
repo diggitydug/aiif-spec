@@ -1,8 +1,8 @@
 # AI Interface Format (AIIF) Specification — Version 1.0
 
-**Status:** Draft  
+**Status:** Final Standard  
 **Version:** 1.0  
-**Date:** 2026-02-24  
+**Date:** 2026-02-23  
 **License:** Apache 2.0
 
 ---
@@ -18,9 +18,11 @@
 7. [Error Specification](#7-error-specification)
 8. [Behavioral Rules for AI Agents](#8-behavioral-rules-for-ai-agents)
 9. [Required AIIF Implementation Endpoints](#9-required-aiif-implementation-endpoints)
-10. [Full Example AIIF Document](#10-full-example-aiif-document)
+10. [Examples (Non-Normative)](#10-examples-non-normative)
 11. [Versioning and Compatibility](#11-versioning-and-compatibility)
-12. [License](#12-license)
+12. [Conformance Checklist](#12-conformance-checklist)
+13. [Security Considerations](#13-security-considerations)
+14. [License](#14-license)
 
 ---
 
@@ -56,6 +58,29 @@ AIIF is designed around four core principles:
 
 AIIF is **not** a replacement for OpenAPI. OpenAPI remains the authoritative standard for human-readable API documentation, SDK generation, and developer tooling. AIIF is a **complementary, LLM-first alternative** intended to serve AI agent use cases where token efficiency and behavioral predictability are the primary concerns. An API MAY expose both an OpenAPI specification and an AIIF document simultaneously.
 
+### 1.5 Goals and Purpose
+
+AIIF is designed to be a compact, deterministic, machine-readable API contract optimized specifically for AI agents. The goals of this specification are:
+
+- **Minimal, LLM-friendly contract:** AIIF includes only the information an agent needs to call an API correctly, with intentionally compact structure to reduce token usage.
+- **Deterministic and unambiguous behavior:** AIIF defines strict rules for parameters, request schemas, response schemas, and errors so agents do not infer undocumented behavior.
+- **Consistent agent-to-API interaction:** AIIF provides a shared contract format that any API can expose and any agent can consume.
+- **Selective documentation retrieval:** AIIF-compliant APIs MUST expose `GET /ai-docs`, `GET /ai-docs/{endpoint}`, and `GET /ai-docs/summary` so agents can fetch only the documentation needed for the current task.
+- **Explicit authentication guidance:** APIs with protected endpoints MUST provide agent-consumable authentication flow documentation so agents can acquire, apply, and refresh credentials deterministically.
+- **Predictable tooling:** AIIF is intentionally constrained so generators, SDKs, and agent frameworks can implement parsing and validation with minimal ambiguity.
+- **Language and framework agnostic:** AIIF is implementation-neutral and portable across ecosystems.
+- **Complementary to existing standards:** AIIF coexists with OpenAPI and focuses on AI-relevant contract details rather than replacing human-oriented standards.
+- **Normative agent behavior:** AIIF uses RFC 2119 language to define how agents SHOULD and MUST behave when calling APIs.
+- **Versioned evolution:** AIIF defines compatibility and unknown-field handling rules so the format can evolve without unnecessary breakage.
+
+### 1.6 Non-Goals
+
+To preserve minimalism and deterministic parsing, AIIF intentionally does not attempt to:
+
+- Replace OpenAPI or full human developer documentation.
+- Encode implementation internals, SDK ergonomics, or service deployment details.
+- Support arbitrary custom field vocabularies that change core semantics.
+
 ---
 
 ## 2. High-Level Concepts
@@ -82,7 +107,7 @@ AIIF includes a normative section of **behavioral rules** that govern how confor
 
 ### 2.6 Versioning Model
 
-AIIF versions follow **semantic versioning** with major and minor components (e.g., `1.0`, `1.1`, `2.0`). A minor version increment (`1.0` → `1.1`) indicates backward-compatible additions. A major version increment (`1.x` → `2.0`) indicates breaking changes. The `version` field in every AIIF document MUST identify the AIIF specification version it conforms to.
+AIIF versions follow **semantic versioning** with major and minor components (e.g., `1.0`, `1.1`, `2.0`). A minor version increment (`1.0` → `1.1`) indicates backward-compatible additions. A major version increment (`1.x` → `2.0`) indicates breaking changes. The `aiif_version` field in every AIIF document MUST identify the AIIF specification version it conforms to.
 
 ---
 
@@ -100,6 +125,7 @@ An AIIF document is a single JSON object with the following top-level fields:
 | `endpoints` | array | REQUIRED | Array of endpoint definition objects. See [Section 4](#4-endpoint-object-specification). |
 | `schemas` | object | OPTIONAL | Map of reusable schema definitions keyed by name. See [Section 6](#6-schema-specification). |
 | `errors` | object | OPTIONAL | Map of reusable error definitions keyed by code. See [Section 7](#7-error-specification). |
+| `agent_rules` | array | OPTIONAL | Global, non-endpoint-specific behavioral guidance for agents, expressed as plain-English instruction strings. See [Section 3.6](#36-global-agent-rules-embedded-plain-language). |
 
 ### 3.2 Info Object
 
@@ -118,6 +144,42 @@ An AIIF document is a single JSON object with the following top-level fields:
 | `description` | string | REQUIRED | Human-readable description of how to authenticate. |
 | `header` | string | OPTIONAL | The header name used to pass credentials (e.g., `"Authorization"`, `"X-API-Key"`). |
 | `scheme` | string | OPTIONAL | For `bearer` type, the scheme prefix (e.g., `"Bearer"`). |
+| `instructions` | array | OPTIONAL | Plain-English authentication instructions for agents. |
+| `acquire` | object | OPTIONAL | Structured description of how to obtain an access token or credential. See Section 3.3.1. |
+| `apply` | object | OPTIONAL | Structured description of how credentials are attached to API calls. See Section 3.3.1. |
+| `refresh` | object | OPTIONAL | Structured description of token refresh or re-authentication behavior. See Section 3.3.1. |
+
+For `type` values that require per-session credentials (for example `bearer` or `oauth2`), implementations SHOULD include `instructions`, `acquire`, and `apply`.
+
+### 3.3.1 Auth Flow Sub-Objects
+
+**`acquire` object fields:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `endpoint_path` | string | REQUIRED | Path of the endpoint used to acquire credentials (e.g., `"/auth/token"`). |
+| `method` | string | REQUIRED | HTTP method used for credential acquisition (typically `"POST"`). |
+| `request` | object | OPTIONAL | Request schema or field guidance required to acquire credentials. |
+| `response_token_field` | string | OPTIONAL | Response field containing the access token (e.g., `"access_token"`). |
+| `response_expires_in_field` | string | OPTIONAL | Response field containing token TTL in seconds (e.g., `"expires_in"`). |
+| `response_refresh_token_field` | string | OPTIONAL | Response field containing refresh token (e.g., `"refresh_token"`). |
+
+**`apply` object fields:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `location` | string | REQUIRED | Where to send credential material. One of: `"header"`, `"query"`, `"cookie"`. |
+| `name` | string | REQUIRED | Header/query/cookie key name (e.g., `"Authorization"`, `"api_key"`). |
+| `prefix` | string | OPTIONAL | Prefix before credential value when applicable (e.g., `"Bearer"`). |
+
+**`refresh` object fields:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `strategy` | string | REQUIRED | One of: `"reauthenticate"`, `"refresh_token"`. |
+| `endpoint_path` | string | OPTIONAL | Path for refresh requests when strategy is `"refresh_token"`. |
+| `method` | string | OPTIONAL | HTTP method for refresh endpoint (typically `"POST"`). |
+| `before_expiry_seconds` | number | OPTIONAL | How long before expiry the client SHOULD refresh credentials. |
 
 ### 3.4 Top-Level Structure Example
 
@@ -134,12 +196,71 @@ An AIIF document is a single JSON object with the following top-level fields:
     "type": "bearer",
     "description": "Include a valid JWT in the Authorization header.",
     "header": "Authorization",
-    "scheme": "Bearer"
+    "scheme": "Bearer",
+    "instructions": [
+      "Acquire an access token from /auth/token before calling protected endpoints.",
+      "Send the token in the Authorization header as Bearer <token>.",
+      "Refresh credentials before expiry or when unauthorized is returned."
+    ],
+    "acquire": {
+      "endpoint_path": "/auth/token",
+      "method": "POST",
+      "response_token_field": "access_token",
+      "response_expires_in_field": "expires_in",
+      "response_refresh_token_field": "refresh_token"
+    },
+    "apply": {
+      "location": "header",
+      "name": "Authorization",
+      "prefix": "Bearer"
+    },
+    "refresh": {
+      "strategy": "refresh_token",
+      "endpoint_path": "/auth/refresh",
+      "method": "POST",
+      "before_expiry_seconds": 60
+    }
   },
   "endpoints": [],
   "schemas": {},
-  "errors": {}
+  "errors": {},
+  "agent_rules": [
+    "Do not call endpoints that are not explicitly listed in endpoints.",
+    "If a 429 response is returned and Retry-After is missing, wait at least 1 second before retrying.",
+    "Do not retry 422 responses until request inputs are corrected."
+  ]
 }
+```
+
+### 3.5 Deterministic Conformance Profile
+
+To ensure predictable machine parsing across implementations:
+
+1. Field names and casing defined by this specification MUST be used exactly as written.
+2. The top-level `endpoints` array MUST NOT contain duplicate `name` values.
+3. The top-level `endpoints` array MUST NOT contain duplicate (`method`, `path`) pairs.
+4. Within an endpoint, `params` entries MUST be unique by (`name`, `location`).
+5. Implementations SHOULD return endpoints in a stable order across `/ai-docs` and `/ai-docs/summary` responses.
+6. Parsers and agents MUST ignore unknown fields, consistent with [Section 11.4](#114-handling-unknown-fields).
+
+### 3.6 Global Agent Rules (Embedded, Plain-Language)
+
+Some behavioral instructions are global and not tied to a specific endpoint (for example: fallback retry delay for `429` responses when `Retry-After` is absent, or explicit prohibition against inferring undocumented endpoints).
+
+To reduce ambiguity and avoid secondary references, implementations SHOULD publish these rules inline in API responses via `agent_rules`.
+
+Implementations SHOULD keep `agent_rules` consistent across `GET /ai-docs`, `GET /ai-docs/summary`, and `GET /ai-docs/{endpoint}` responses.
+
+Global rules in `agent_rules` MUST NOT weaken or contradict normative requirements in [Section 8](#8-behavioral-rules-for-ai-agents).
+
+**Recommended minimal `agent_rules` shape:**
+
+```json
+[
+  "Do not infer or guess undocumented endpoints.",
+  "If you receive HTTP 429 and Retry-After is not provided, wait at least 1 second before retrying.",
+  "Require explicit user confirmation before destructive operations such as DELETE or PUT."
+]
 ```
 
 ---
@@ -154,10 +275,13 @@ Each element of the `endpoints` array MUST be an object with the following field
 |---|---|---|---|
 | `name` | string | REQUIRED | A unique, machine-readable identifier for the endpoint (e.g., `"get_user"`). MUST be unique within the document. MUST use snake_case. |
 | `method` | string | REQUIRED | HTTP method. One of: `"GET"`, `"POST"`, `"PUT"`, `"PATCH"`, `"DELETE"`. MUST be uppercase. |
-| `path` | string | REQUIRED | The URL path relative to `base_url`. Path parameters MUST be enclosed in curly braces (e.g., `"/users/{user_id}"`). |
+| `path` | string | REQUIRED | The URL path relative to `base_url`. Path parameters MUST be enclosed in curly braces (e.g., `"/users/{user_id}"`). The (`method`, `path`) pair MUST be unique within the document. |
 | `description` | string | REQUIRED | A concise, one-to-two sentence description of what the endpoint does. |
+| `auth_required` | boolean | OPTIONAL | Whether this endpoint requires authentication credentials. If omitted and top-level `auth.type` is not `"none"`, agents SHOULD assume `true`. |
 | `params` | array | OPTIONAL | Array of parameter objects. See [Section 5](#5-parameter-specification). |
 | `request` | object | OPTIONAL | The request body schema. MUST be omitted for `GET` and `DELETE` methods unless semantically necessary. See [Section 6](#6-schema-specification). |
+| `request_content_type` | string | OPTIONAL | Content type for request body serialization (e.g., `"application/json"`). If `request` is present and this field is omitted, agents SHOULD default to `"application/json"`. |
+| `response_content_type` | string | OPTIONAL | Content type for successful response parsing (e.g., `"application/json"`). If omitted, agents SHOULD default to `"application/json"`. |
 | `response` | object | REQUIRED | The success response schema. See [Section 6](#6-schema-specification). |
 | `errors` | array | OPTIONAL | Array of error code strings referencing entries in the top-level `errors` map, or inline error objects. |
 | `examples` | array | OPTIONAL | Array of example objects. See [Section 4.3](#43-example-object). |
@@ -170,10 +294,12 @@ Each element of the `endpoints` array MUST be an object with the following field
   "method": "GET",
   "path": "/users/{user_id}",
   "description": "Retrieve a single user by their unique identifier.",
+  "auth_required": true,
+  "response_content_type": "application/json",
   "params": [
     {
       "name": "user_id",
-      "in": "path",
+      "location": "path",
       "type": "string",
       "required": true,
       "description": "The unique identifier of the user."
@@ -217,12 +343,20 @@ Each element of the `endpoints` array MUST be an object with the following field
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | REQUIRED | The parameter name as it appears in the URL or request body. |
-| `in` | string | REQUIRED | Location of the parameter. MUST be one of: `"path"`, `"query"`, `"body"`. |
+| `location` | string | REQUIRED | Location of the parameter. MUST be one of: `"path"`, `"query"`, `"body"`. |
 | `type` | string | REQUIRED | The data type. MUST be one of the AIIF primitive types (see [Section 6.1](#61-primitive-types)). |
 | `required` | boolean | REQUIRED | Whether the parameter is required. Path parameters MUST always have `required: true`. |
 | `description` | string | REQUIRED | A concise description of the parameter's purpose and any constraints. |
 | `enum` | array | OPTIONAL | If present, the parameter value MUST be one of the listed values. |
+| `minimum` | number | OPTIONAL | Minimum numeric value allowed (for `number` type). |
+| `maximum` | number | OPTIONAL | Maximum numeric value allowed (for `number` type). |
+| `min_length` | number | OPTIONAL | Minimum string length allowed (for `string` type). |
+| `max_length` | number | OPTIONAL | Maximum string length allowed (for `string` type). |
+| `pattern` | string | OPTIONAL | Regex pattern the value MUST match (for `string` type). |
+| `format` | string | OPTIONAL | Semantic string format hint (e.g., `"email"`, `"date-time"`, `"uri"`). |
 | `default` | any | OPTIONAL | The default value used if the parameter is omitted (only valid when `required` is `false`). |
+
+Implementations MAY accept legacy `in` as an alias for `location` for backward compatibility, but producers SHOULD emit `location`.
 
 ### 5.2 Parameter Examples
 
@@ -230,9 +364,10 @@ Each element of the `endpoints` array MUST be an object with the following field
 ```json
 {
   "name": "user_id",
-  "in": "path",
+  "location": "path",
   "type": "string",
   "required": true,
+  "pattern": "^usr_[a-zA-Z0-9]+$",
   "description": "The unique identifier of the user."
 }
 ```
@@ -241,7 +376,7 @@ Each element of the `endpoints` array MUST be an object with the following field
 ```json
 {
   "name": "status",
-  "in": "query",
+  "location": "query",
   "type": "string",
   "required": false,
   "description": "Filter results by order status.",
@@ -254,9 +389,11 @@ Each element of the `endpoints` array MUST be an object with the following field
 ```json
 {
   "name": "limit",
-  "in": "query",
+  "location": "query",
   "type": "number",
   "required": false,
+  "minimum": 1,
+  "maximum": 100,
   "description": "Maximum number of results to return. Must be between 1 and 100.",
   "default": 20
 }
@@ -476,7 +613,7 @@ An endpoint's `errors` field is an array of error code strings that reference en
   "params": [
     {
       "name": "user_id",
-      "in": "path",
+      "location": "path",
       "type": "string",
       "required": true,
       "description": "The unique identifier of the user to delete."
@@ -501,7 +638,7 @@ This section contains normative rules that govern how AI agents MUST interact wi
 
 ### 8.1 Endpoint Discovery
 
-1. An agent MUST NOT call any endpoint that is not explicitly defined in the `endpoints` array of the AIIF document.
+1. An agent MUST NOT call any endpoint that is not explicitly defined in the `endpoints` array of the AIIF document, except AIIF documentation endpoints defined in Section 9 and authentication endpoints explicitly defined in the `auth` object.
 2. An agent MUST NOT infer or guess the existence of endpoints based on naming patterns, conventions, or prior knowledge.
 3. An agent MUST use the `GET /ai-docs/summary` endpoint (see [Section 9](#9-required-aiif-implementation-endpoints)) to discover available endpoints before attempting to call any operation.
 
@@ -509,8 +646,8 @@ This section contains normative rules that govern how AI agents MUST interact wi
 
 4. An agent MUST supply all parameters marked `required: true` for every request.
 5. An agent MUST NOT supply parameters that are not defined in the endpoint's `params` array.
-6. An agent MUST use parameter values that conform to the declared `type` and, where applicable, are members of the declared `enum`.
-7. An agent MUST place each parameter in the location declared by the `in` field (`path`, `query`, or `body`).
+6. An agent MUST use parameter values that conform to the declared `type` and any declared constraints (`enum`, `minimum`, `maximum`, `min_length`, `max_length`, `pattern`, `format`).
+7. An agent MUST place each parameter in the location declared by the `location` field (`path`, `query`, or `body`).
 8. An agent SHOULD use the `default` value of an optional parameter when no other value is contextually appropriate.
 
 ### 8.3 Request Body Compliance
@@ -521,7 +658,7 @@ This section contains normative rules that govern how AI agents MUST interact wi
 
 ### 8.4 Response Handling
 
-12. An agent MUST parse API responses according to the endpoint's declared `response` schema.
+12. An agent MUST parse API responses according to the endpoint's declared `response` schema and `response_content_type` when provided.
 13. An agent SHOULD treat any fields present in the response but absent from the schema as informational and MUST NOT rely on them for decision-making.
 14. An agent MUST validate that a successful response matches the expected shape before extracting values from it.
 
@@ -538,18 +675,30 @@ This section contains normative rules that govern how AI agents MUST interact wi
 20. An agent MUST include authentication credentials as specified in the `auth` object for every request to a protected endpoint.
 21. An agent MUST NOT log, store, or transmit authentication credentials in any output visible to end users.
 22. An agent MUST treat an `unauthorized` error as a signal to refresh or re-obtain credentials before retrying.
+23. If `auth.type` is not `"none"`, an agent SHOULD fetch `GET /ai-docs/auth` before the first protected operation call.
+24. If `auth.acquire` is present, an agent MUST follow it to obtain credentials before protected calls.
+25. If `auth.refresh.before_expiry_seconds` is provided, an agent SHOULD refresh credentials before token expiry by at least the specified lead time.
+26. If endpoint `auth_required` is present, an agent MUST honor it when deciding whether to attach credentials.
+27. If endpoint `auth_required` is absent and top-level `auth.type` is not `"none"`, an agent SHOULD assume the endpoint is protected.
 
 ### 8.7 Scope Limitation
 
-23. An agent MUST limit its API interactions to the operations required to fulfill the task it has been given.
-24. An agent MUST NOT call destructive operations (e.g., `DELETE`, `PUT`) unless explicitly instructed to do so.
-25. An agent SHOULD prefer read-only (`GET`) operations when exploring an API's state prior to taking action.
+28. An agent MUST limit its API interactions to the operations required to fulfill the task it has been given.
+29. An agent MUST NOT call destructive operations (e.g., `DELETE`, `PUT`) unless explicitly instructed to do so.
+30. An agent SHOULD prefer read-only (`GET`) operations when exploring an API's state prior to taking action.
+
+### 8.8 Global Rule Consumption
+
+31. An agent SHOULD consume global behavior guidance from `agent_rules` (if present) before executing endpoint calls.
+32. An agent MUST treat each instruction in `agent_rules` as an API-specific constraint that complements endpoint-level contract details.
+33. If any `agent_rules` instruction conflicts with normative requirements in this specification, the normative requirements in this specification MUST take precedence.
+34. If a `429` response is returned without a `Retry-After` header, an agent SHOULD follow applicable plain-English guidance in `agent_rules`; otherwise, the agent SHOULD wait at least one second before retrying.
 
 ---
 
 ## 9. Required AIIF Implementation Endpoints
 
-Any API that claims AIIF compliance MUST expose the following three endpoints in addition to its functional API. These endpoints are defined relative to the API's `base_url`.
+Any API that claims AIIF compliance MUST expose the following three core endpoints in addition to its functional API. For APIs with `auth.type` other than `"none"`, `GET /ai-docs/auth` is also REQUIRED. These endpoints are defined relative to the API's `base_url`.
 
 ### 9.1 `GET /ai-docs`
 
@@ -559,6 +708,7 @@ Any API that claims AIIF compliance MUST expose the following three endpoints in
 - The response MUST be a valid AIIF document conforming to [Section 3](#3-aiif-document-structure).
 - The response MUST be returned with `Content-Type: application/json`.
 - The response MUST include all defined endpoints, schemas, and errors.
+- The response SHOULD include `agent_rules` to publish non-endpoint-specific behavioral guidance.
 - The response MUST NOT require authentication.
 
 **Response Schema:**
@@ -572,7 +722,8 @@ Any API that claims AIIF compliance MUST expose the following three endpoints in
     "auth": { "$ref": "#/schemas/Auth" },
     "endpoints": { "type": "array", "items": { "$ref": "#/schemas/Endpoint" } },
     "schemas": { "type": "object" },
-    "errors": { "type": "object" }
+    "errors": { "type": "object" },
+    "agent_rules": { "type": "array", "items": { "type": "string" } }
   },
   "required": ["aiif_version", "info", "endpoints"]
 }
@@ -592,6 +743,8 @@ Any API that claims AIIF compliance MUST expose the following three endpoints in
 - The response MUST include the full endpoint definition object as defined in [Section 4](#4-endpoint-object-specification).
 - The response MUST include all schemas referenced (directly or transitively) by the endpoint's `request`, `response`, and inline parameter schemas, resolved into an inline `schemas` map.
 - The response MUST include all error definitions referenced by the endpoint's `errors` array, resolved into an inline `errors` map.
+- The response SHOULD include `agent_rules` to preserve API-wide behavior guidance when agents load a single endpoint contract.
+- The `endpoint` path parameter MUST be matched against endpoint `name` exactly (case-sensitive).
 - If the requested endpoint name does not exist, the implementation MUST return an HTTP `404` response.
 - The response MUST be returned with `Content-Type: application/json`.
 - The response MUST NOT require authentication.
@@ -614,6 +767,11 @@ Any API that claims AIIF compliance MUST expose the following three endpoints in
     "errors": {
       "type": "object",
       "description": "All error definitions referenced by this endpoint."
+    },
+    "agent_rules": {
+      "type": "array",
+      "description": "Optional global behavior guidance for agents.",
+      "items": { "type": "string" }
     }
   },
   "required": ["endpoint"]
@@ -626,7 +784,10 @@ Any API that claims AIIF compliance MUST expose the following three endpoints in
 
 **Requirements:**
 - The response MUST include one entry per defined endpoint.
-- Each entry MUST include: `name`, `method`, `path`, and `description`.
+- Each entry MUST include: `name`, `method`, `path`, `description`, and `auth_required`.
+- Endpoint entries SHOULD be returned in the same stable order as the `endpoints` array in `GET /ai-docs`.
+- The response SHOULD include `agent_rules` so agents can load global behavior guidance during initial discovery.
+- For APIs with protected endpoints, the response SHOULD include `auth_docs_path` (recommended: `"/ai-docs/auth"`).
 - The response MUST be returned with `Content-Type: application/json`.
 - The response MUST NOT require authentication.
 
@@ -639,6 +800,8 @@ Any API that claims AIIF compliance MUST expose the following three endpoints in
   "properties": {
     "api": { "type": "string", "description": "The API name from info.name." },
     "base_url": { "type": "string", "description": "The API base URL." },
+    "auth_docs_path": { "type": "string", "description": "Optional path to authentication documentation endpoint." },
+    "agent_rules": { "type": "array", "description": "Optional global behavior guidance for agents.", "items": { "type": "string" } },
     "endpoints": {
       "type": "array",
       "items": {
@@ -647,9 +810,10 @@ Any API that claims AIIF compliance MUST expose the following three endpoints in
           "name": { "type": "string" },
           "method": { "type": "string" },
           "path": { "type": "string" },
-          "description": { "type": "string" }
+          "description": { "type": "string" },
+          "auth_required": { "type": "boolean" }
         },
-        "required": ["name", "method", "path", "description"]
+        "required": ["name", "method", "path", "description", "auth_required"]
       }
     }
   },
@@ -662,269 +826,73 @@ Any API that claims AIIF compliance MUST expose the following three endpoints in
 {
   "api": "User Management API",
   "base_url": "https://api.example.com/v1",
+  "auth_docs_path": "/ai-docs/auth",
+  "agent_rules": [
+    "Do not infer endpoints not listed in this document.",
+    "If a 429 response has no Retry-After header, wait at least 1 second before retrying."
+  ],
   "endpoints": [
     {
       "name": "list_users",
       "method": "GET",
       "path": "/users",
-      "description": "Returns a paginated list of all users."
-    },
-    {
-      "name": "get_user",
-      "method": "GET",
-      "path": "/users/{user_id}",
-      "description": "Retrieve a single user by their unique identifier."
-    },
-    {
-      "name": "create_user",
-      "method": "POST",
-      "path": "/users",
-      "description": "Create a new user account."
-    }
-  ]
-}
-```
-
----
-
-## 10. Full Example AIIF Document
-
-The following is a complete, realistic AIIF document for a minimal User Management API with three endpoints.
-
-```json
-{
-  "aiif_version": "1.0",
-  "info": {
-    "name": "User Management API",
-    "description": "Manages user accounts including creation, retrieval, and deletion.",
-    "base_url": "https://api.example.com/v1",
-    "version": "1.0.0"
-  },
-  "auth": {
-    "type": "bearer",
-    "description": "All requests must include a valid JWT bearer token in the Authorization header.",
-    "header": "Authorization",
-    "scheme": "Bearer"
-  },
-  "endpoints": [
-    {
-      "name": "list_users",
-      "method": "GET",
-      "path": "/users",
-      "description": "Returns a paginated list of all users in the system.",
-      "params": [
-        {
-          "name": "limit",
-          "in": "query",
-          "type": "number",
-          "required": false,
-          "description": "Maximum number of users to return (1–100).",
-          "default": 20
-        },
-        {
-          "name": "offset",
-          "in": "query",
-          "type": "number",
-          "required": false,
-          "description": "Number of users to skip for pagination.",
-          "default": 0
-        },
-        {
-          "name": "status",
-          "in": "query",
-          "type": "string",
-          "required": false,
-          "description": "Filter by account status.",
-          "enum": ["active", "inactive", "suspended"],
-          "default": "active"
-        }
-      ],
-      "response": {
-        "type": "object",
-        "properties": {
-          "total": {
-            "type": "number",
-            "description": "Total number of users matching the filter."
-          },
-          "users": {
-            "type": "array",
-            "description": "The list of user objects.",
-            "items": { "$ref": "#/schemas/User" }
-          }
-        },
-        "required": ["total", "users"]
-      },
-      "errors": ["unauthorized", "validation_error"],
-      "examples": [
-        {
-          "title": "List active users, first page",
-          "request": {
-            "params": { "limit": 2, "offset": 0, "status": "active" }
-          },
-          "response": {
-            "total": 42,
-            "users": [
-              {
-                "id": "usr_001",
-                "name": "Alice Smith",
-                "email": "alice@example.com",
-                "status": "active",
-                "created_at": "2025-01-10T09:00:00Z"
-              },
-              {
-                "id": "usr_002",
-                "name": "Bob Jones",
-                "email": "bob@example.com",
-                "status": "active",
-                "created_at": "2025-01-11T14:30:00Z"
-              }
-            ]
-          }
-        }
-      ]
+      "description": "Returns a paginated list of all users.",
+      "auth_required": true
     },
     {
       "name": "get_user",
       "method": "GET",
       "path": "/users/{user_id}",
       "description": "Retrieve a single user by their unique identifier.",
-      "params": [
-        {
-          "name": "user_id",
-          "in": "path",
-          "type": "string",
-          "required": true,
-          "description": "The unique identifier of the user."
-        }
-      ],
-      "response": {
-        "$ref": "#/schemas/User"
-      },
-      "errors": ["unauthorized", "not_found"],
-      "examples": [
-        {
-          "title": "Fetch user usr_001",
-          "request": {
-            "params": { "user_id": "usr_001" }
-          },
-          "response": {
-            "id": "usr_001",
-            "name": "Alice Smith",
-            "email": "alice@example.com",
-            "status": "active",
-            "created_at": "2025-01-10T09:00:00Z"
-          }
-        }
-      ]
+      "auth_required": true
     },
     {
       "name": "create_user",
       "method": "POST",
       "path": "/users",
-      "description": "Create a new user account with the provided details.",
-      "request": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string",
-            "description": "The full display name for the new user."
-          },
-          "email": {
-            "type": "string",
-            "description": "A valid, unique email address for the new user."
-          },
-          "role": {
-            "type": "string",
-            "description": "The role to assign to the new user.",
-            "enum": ["admin", "editor", "viewer"],
-            "default": "viewer"
-          }
-        },
-        "required": ["name", "email"]
-      },
-      "response": {
-        "$ref": "#/schemas/User"
-      },
-      "errors": ["unauthorized", "forbidden", "validation_error"],
-      "examples": [
-        {
-          "title": "Create a new viewer",
-          "request": {
-            "body": {
-              "name": "Carol White",
-              "email": "carol@example.com",
-              "role": "viewer"
-            }
-          },
-          "response": {
-            "id": "usr_003",
-            "name": "Carol White",
-            "email": "carol@example.com",
-            "status": "active",
-            "created_at": "2026-02-24T01:00:00Z"
-          }
-        }
-      ]
+      "description": "Create a new user account.",
+      "auth_required": true
     }
-  ],
-  "schemas": {
-    "User": {
-      "type": "object",
-      "description": "Represents a user account.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique user identifier assigned by the system."
-        },
-        "name": {
-          "type": "string",
-          "description": "Full display name."
-        },
-        "email": {
-          "type": "string",
-          "description": "Email address."
-        },
-        "status": {
-          "type": "string",
-          "description": "Current account status.",
-          "enum": ["active", "inactive", "suspended"]
-        },
-        "created_at": {
-          "type": "string",
-          "description": "ISO 8601 timestamp of when the account was created."
-        }
-      },
-      "required": ["id", "name", "email", "status", "created_at"]
-    }
-  },
-  "errors": {
-    "unauthorized": {
-      "code": "unauthorized",
-      "http_status": 401,
-      "message": "Unauthorized",
-      "description": "The request did not include valid authentication credentials. Ensure a valid bearer token is present in the Authorization header."
-    },
-    "forbidden": {
-      "code": "forbidden",
-      "http_status": 403,
-      "message": "Forbidden",
-      "description": "The authenticated user does not have permission to perform this operation. Do not retry without obtaining elevated permissions."
-    },
-    "not_found": {
-      "code": "not_found",
-      "http_status": 404,
-      "message": "Not Found",
-      "description": "The requested resource does not exist. Verify the identifier and retry."
-    },
-    "validation_error": {
-      "code": "validation_error",
-      "http_status": 422,
-      "message": "Validation Error",
-      "description": "One or more request parameters failed validation. The response body contains a list of field-level errors. Correct the identified fields before retrying."
-    }
-  }
+  ]
 }
 ```
+
+### 9.4 `GET /ai-docs/auth` (Required for Protected APIs)
+
+**Purpose:** Returns API authentication instructions and flow metadata for agent clients.
+
+**Requirements:**
+- If `auth.type` is not `"none"`, this endpoint MUST be exposed.
+- The response MUST be returned with `Content-Type: application/json`.
+- The response MUST include `type`, `instructions`, and when applicable `acquire`, `apply`, and `refresh`.
+- The response MUST NOT require authentication.
+
+**Response Schema:**
+```json
+{
+  "type": "object",
+  "properties": {
+    "type": { "type": "string" },
+    "description": { "type": "string" },
+    "instructions": { "type": "array", "items": { "type": "string" } },
+    "acquire": { "type": "object" },
+    "apply": { "type": "object" },
+    "refresh": { "type": "object" }
+  },
+  "required": ["type", "description"]
+}
+```
+
+---
+
+## 10. Examples (Non-Normative)
+
+To keep the normative specification compact and token-efficient, complete examples are maintained in a separate document:
+
+- See **AIIF Examples**: `AIIF-Examples.md`
+- See **Minimal Compliant AIIF Example**: `AIIF-Minimal-Compliant.aiif.json`
+
+The examples document is informative and does not override any MUST/SHOULD/MAY requirements in this specification.
 
 ---
 
@@ -966,7 +934,92 @@ An API implementation SHOULD advertise the AIIF version it supports via the `aii
 
 ---
 
-## 12. License
+## 12. Conformance Checklist
+
+This checklist is non-normative guidance for fast implementation validation. A conforming implementation still depends on the normative MUST/SHOULD/MAY rules in this specification.
+
+For machine-oriented validation workflows, see: `AIIF-Conformance-Checklist.json`.
+
+### 12.1 API Implementation Checklist
+
+- [ ] `GET /ai-docs`, `GET /ai-docs/{endpoint}`, and `GET /ai-docs/summary` are exposed and return `application/json`.
+- [ ] For protected APIs (`auth.type` is not `none`), `GET /ai-docs/auth` is exposed and returns `application/json`.
+- [ ] `GET /ai-docs` returns a valid AIIF document with required top-level fields (`aiif_version`, `info`, `endpoints`).
+- [ ] Endpoint `name` values are unique across `endpoints`.
+- [ ] Endpoint (`method`, `path`) pairs are unique across `endpoints`.
+- [ ] Each endpoint's `params` entries are unique by (`name`, `location`).
+- [ ] `/ai-docs/{endpoint}` returns referenced `schemas` and `errors` for that endpoint.
+- [ ] `/ai-docs/{endpoint}` matches endpoint names exactly (case-sensitive).
+- [ ] `/ai-docs/summary` includes `name`, `method`, `path`, `description`, `auth_required` for each endpoint.
+- [ ] For protected APIs, `/ai-docs/summary` includes `auth_docs_path`.
+- [ ] `agent_rules` is embedded as a plain-English string array and kept consistent across docs responses when present.
+- [ ] For bearer/oauth2 auth, the `auth` object includes clear instructions plus structured acquire/apply metadata.
+- [ ] Endpoints use `auth_required` where protected/public behavior differs from top-level defaults.
+- [ ] Parameter constraints (`minimum`, `maximum`, `min_length`, `max_length`, `pattern`, `format`) are published where needed to avoid inference.
+- [ ] Endpoints use `response_content_type` when success responses are not JSON; otherwise JSON default behavior is clear.
+- [ ] Unknown optional fields do not break parser compatibility.
+
+### 12.2 Agent/Client Checklist
+
+- [ ] The agent discovers available operations from `/ai-docs/summary` before calling endpoints.
+- [ ] The agent never calls undocumented endpoints or undocumented parameters.
+- [ ] The agent enforces required params and schema-required fields before requests.
+- [ ] The agent follows parameter locations exactly (`path`, `query`, `body`).
+- [ ] The agent validates successful response shape against the declared `response` schema.
+- [ ] The agent handles listed endpoint errors explicitly (`errors` array).
+- [ ] The agent respects `Retry-After` for `429` and applies fallback wait when missing.
+- [ ] The agent does not retry `422` without correcting input.
+- [ ] The agent does not retry `403` without changed authorization.
+- [ ] For protected APIs, the agent loads `/ai-docs/auth` and follows documented credential acquire/apply/refresh flow.
+- [ ] The agent uses endpoint `auth_required` (or default auth behavior when omitted) to decide whether credentials must be attached.
+- [ ] The agent honors `response_content_type` (or defaults to JSON when omitted) when parsing successful responses.
+- [ ] The agent treats `agent_rules` instructions as API-specific constraints unless they conflict with normative spec rules.
+
+### 12.3 Release Readiness (Recommended)
+
+- [ ] At least one end-to-end agent flow test passes (discover → load endpoint contract → execute call).
+- [ ] At least one negative-path test passes for each major error class (`401/403/404/422/429/500`).
+- [ ] Example payloads in `AIIF-Examples.md` remain aligned with current normative field definitions.
+
+---
+
+## 13. Security Considerations
+
+AIIF documentation endpoints are valuable for agent interoperability but MUST be implemented with standard API security controls.
+
+### 13.1 Data Exposure and Documentation Hygiene
+
+- Implementations MUST NOT include secrets, private keys, credentials, internal hostnames, or non-public infrastructure details in AIIF responses.
+- Implementations SHOULD expose only contract-level information needed for correct API usage.
+- Implementations SHOULD treat AIIF payloads as externally visible documentation and review them through security and privacy controls.
+
+### 13.2 Access Control and Authorization
+
+- Exposing AIIF documentation endpoints (`/ai-docs*`) MUST NOT bypass normal authorization checks on functional API endpoints.
+- APIs SHOULD enforce least-privilege access scopes and role checks regardless of what agent documentation is available.
+- For sensitive APIs, implementations SHOULD consider access controls or scoped visibility for AIIF docs while keeping enough metadata for safe agent operation.
+
+### 13.3 Abuse, Enumeration, and Rate Limiting
+
+- Implementations SHOULD apply rate limits and abuse detection to AIIF endpoints similarly to functional endpoints.
+- Implementations SHOULD monitor for endpoint enumeration, credential stuffing, and automation abuse patterns.
+- Implementations SHOULD return consistent error envelopes and avoid leaking unnecessary operational detail in error messages.
+
+### 13.4 Authentication Flow Hardening
+
+- For protected APIs, implementations SHOULD provide explicit token TTL and refresh behavior in `auth.refresh`.
+- Access tokens SHOULD be short-lived; refresh tokens (if used) SHOULD be rotatable and revocable.
+- Implementations SHOULD protect auth endpoints against replay and brute-force abuse using standard controls (rate limiting, lockouts, and anomaly detection).
+
+### 13.5 Agent Safety Expectations
+
+- Agents MUST follow documented auth and endpoint constraints and MUST NOT infer undocumented privileged operations.
+- Agents MUST avoid logging credentials or sensitive token material.
+- Agents SHOULD prefer read-only operations for discovery and require explicit confirmation for destructive operations.
+
+---
+
+## 14. License
 
 The AI Interface Format (AIIF) Specification is licensed under the **Apache License, Version 2.0**.
 

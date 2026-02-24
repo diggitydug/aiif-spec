@@ -1,0 +1,101 @@
+name: AIIF Validation CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate-python:
+    name: Validate (Python)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Python validator checks
+        run: |
+          set -euo pipefail
+
+          python tools/validate-aiif.py --aiif fixtures/validation/valid.aiif.json
+          python tools/validate-aiif.py --aiif fixtures/validation/mostly-valid.aiif.json
+          python tools/validate-aiif.py --aiif AIIF-Minimal-Compliant.aiif.json --strict-should
+
+          set +e
+          python tools/validate-aiif.py --aiif fixtures/validation/invalid.aiif.json
+          invalid_code=$?
+          python tools/validate-aiif.py --aiif fixtures/validation/mostly-valid.aiif.json --strict-should
+          mostly_strict_code=$?
+          set -e
+
+          test "$invalid_code" -eq 1
+          test "$mostly_strict_code" -eq 1
+
+  validate-powershell:
+    name: Validate (PowerShell)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run PowerShell validator checks
+        shell: pwsh
+        run: |
+          ./tools/validate-aiif.ps1 -Aiif fixtures/validation/valid.aiif.json
+          if ($LASTEXITCODE -ne 0) { throw "valid fixture should pass" }
+
+          ./tools/validate-aiif.ps1 -Aiif fixtures/validation/mostly-valid.aiif.json
+          if ($LASTEXITCODE -ne 0) { throw "mostly-valid fixture should pass in non-strict mode" }
+
+          ./tools/validate-aiif.ps1 -Aiif AIIF-Minimal-Compliant.aiif.json -StrictShould
+          if ($LASTEXITCODE -ne 0) { throw "minimal compliant fixture should pass strict mode" }
+
+          ./tools/validate-aiif.ps1 -Aiif fixtures/validation/invalid.aiif.json
+          if ($LASTEXITCODE -ne 1) { throw "invalid fixture should fail with exit 1" }
+
+          ./tools/validate-aiif.ps1 -Aiif fixtures/validation/mostly-valid.aiif.json -StrictShould
+          if ($LASTEXITCODE -ne 1) { throw "mostly-valid fixture should fail with exit 1 in strict mode" }
+
+  validate-bash:
+    name: Validate (Bash)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Ensure script is executable
+        run: |
+          chmod +x tools/validate-aiif.sh
+          sed -i 's/\r$//' tools/validate-aiif.sh
+
+      - name: Run Bash validator checks
+        run: |
+          set -euo pipefail
+
+          bash tools/validate-aiif.sh --aiif fixtures/validation/valid.aiif.json
+          bash tools/validate-aiif.sh --aiif fixtures/validation/mostly-valid.aiif.json
+          bash tools/validate-aiif.sh --aiif AIIF-Minimal-Compliant.aiif.json --strict-should
+
+          set +e
+          bash tools/validate-aiif.sh --aiif fixtures/validation/invalid.aiif.json
+          invalid_code=$?
+          bash tools/validate-aiif.sh --aiif fixtures/validation/mostly-valid.aiif.json --strict-should
+          mostly_strict_code=$?
+          set -e
+
+          test "$invalid_code" -eq 1
+          test "$mostly_strict_code" -eq 1

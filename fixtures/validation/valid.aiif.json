@@ -1,0 +1,85 @@
+{
+  "aiif_version": "1.0",
+  "info": {
+    "name": "Fixture Valid API",
+    "description": "A fully valid AIIF fixture for validator tests.",
+    "base_url": "https://api.example.com/v1",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "description": "Use bearer token auth.",
+    "instructions": [
+      "Acquire token from /auth/token.",
+      "Attach Authorization header.",
+      "Refresh before expiry."
+    ],
+    "acquire": {
+      "endpoint_path": "/auth/token",
+      "method": "POST",
+      "response_token_field": "access_token"
+    },
+    "apply": {
+      "location": "header",
+      "name": "Authorization",
+      "prefix": "Bearer"
+    }
+  },
+  "agent_rules": [
+    "Do not call undocumented endpoints.",
+    "If 429 has no Retry-After, wait at least 1 second."
+  ],
+  "endpoints": [
+    {
+      "name": "get_weather",
+      "method": "GET",
+      "path": "/weather/current",
+      "description": "Returns current weather for coordinates.",
+      "auth_required": true,
+      "response_content_type": "application/json",
+      "params": [
+        {
+          "name": "lat",
+          "location": "query",
+          "type": "number",
+          "required": true,
+          "description": "Latitude.",
+          "minimum": -90,
+          "maximum": 90
+        },
+        {
+          "name": "lon",
+          "location": "query",
+          "type": "number",
+          "required": true,
+          "description": "Longitude.",
+          "minimum": -180,
+          "maximum": 180
+        }
+      ],
+      "response": {
+        "type": "object",
+        "properties": {
+          "temperature": { "type": "number" },
+          "unit": { "type": "string" }
+        },
+        "required": ["temperature", "unit"]
+      },
+      "errors": ["unauthorized", "validation_error"]
+    }
+  ],
+  "errors": {
+    "unauthorized": {
+      "code": "unauthorized",
+      "http_status": 401,
+      "message": "Unauthorized",
+      "description": "Missing or invalid token."
+    },
+    "validation_error": {
+      "code": "validation_error",
+      "http_status": 422,
+      "message": "Validation Error",
+      "description": "Input failed validation."
+    }
+  }
+}

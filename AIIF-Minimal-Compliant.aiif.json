@@ -1,0 +1,128 @@
+{
+  "aiif_version": "1.0",
+  "info": {
+    "name": "Minimal Weather API",
+    "description": "Returns current temperature for a coordinate in a requested unit.",
+    "base_url": "https://api.example.com/v1",
+    "version": "1.0.0"
+  },
+  "auth": {
+    "type": "bearer",
+    "description": "Include a valid access token in the Authorization header.",
+    "header": "Authorization",
+    "scheme": "Bearer",
+    "instructions": [
+      "Acquire an access token using POST /auth/token before calling protected endpoints.",
+      "Send Authorization: Bearer <token> on protected requests.",
+      "Refresh credentials before expiry or when unauthorized is returned."
+    ],
+    "acquire": {
+      "endpoint_path": "/auth/token",
+      "method": "POST",
+      "response_token_field": "access_token",
+      "response_expires_in_field": "expires_in",
+      "response_refresh_token_field": "refresh_token"
+    },
+    "apply": {
+      "location": "header",
+      "name": "Authorization",
+      "prefix": "Bearer"
+    },
+    "refresh": {
+      "strategy": "refresh_token",
+      "endpoint_path": "/auth/refresh",
+      "method": "POST",
+      "before_expiry_seconds": 60
+    }
+  },
+  "agent_rules": [
+    "Do not call endpoints that are not explicitly listed in endpoints.",
+    "If a 429 response is returned and Retry-After is missing, wait at least 1 second before retrying.",
+    "Do not retry 422 responses until request inputs are corrected."
+  ],
+  "endpoints": [
+    {
+      "name": "get_current_temperature",
+      "method": "GET",
+      "path": "/weather/current",
+      "description": "Returns the current temperature at a coordinate in the requested unit.",
+      "auth_required": true,
+      "response_content_type": "application/json",
+      "params": [
+        {
+          "name": "lat",
+          "location": "query",
+          "type": "number",
+          "required": true,
+          "description": "Latitude in decimal degrees (range -90 to 90).",
+          "minimum": -90,
+          "maximum": 90
+        },
+        {
+          "name": "lon",
+          "location": "query",
+          "type": "number",
+          "required": true,
+          "description": "Longitude in decimal degrees (range -180 to 180).",
+          "minimum": -180,
+          "maximum": 180
+        },
+        {
+          "name": "unit",
+          "location": "query",
+          "type": "string",
+          "required": false,
+          "description": "Requested temperature unit.",
+          "enum": ["celsius", "fahrenheit"],
+          "default": "celsius"
+        }
+      ],
+      "response": {
+        "type": "object",
+        "properties": {
+          "temperature": {
+            "type": "number",
+            "description": "Current temperature at the requested coordinate in the returned unit."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Unit used for the temperature value.",
+            "enum": ["celsius", "fahrenheit"]
+          },
+          "observed_at": {
+            "type": "string",
+            "description": "ISO 8601 timestamp of the observation."
+          }
+        },
+        "required": ["temperature", "unit", "observed_at"]
+      },
+      "errors": ["unauthorized", "validation_error", "rate_limited", "internal_error"]
+    }
+  ],
+  "errors": {
+    "unauthorized": {
+      "code": "unauthorized",
+      "http_status": 401,
+      "message": "Unauthorized",
+      "description": "Missing or invalid bearer token. Re-authenticate before retrying."
+    },
+    "validation_error": {
+      "code": "validation_error",
+      "http_status": 422,
+      "message": "Validation Error",
+      "description": "One or more query parameters are invalid. Correct inputs before retrying."
+    },
+    "rate_limited": {
+      "code": "rate_limited",
+      "http_status": 429,
+      "message": "Too Many Requests",
+      "description": "The client exceeded allowed request rate. Respect Retry-After when present."
+    },
+    "internal_error": {
+      "code": "internal_error",
+      "http_status": 500,
+      "message": "Internal Server Error",
+      "description": "Unexpected server-side failure. Retry with bounded exponential backoff."
+    }
+  }
+}
