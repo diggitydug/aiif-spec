@@ -55,7 +55,7 @@ jobs:
               [switch]$StrictShould
             )
 
-            $args = @(
+            $argList = @(
               '-NoProfile',
               '-ExecutionPolicy', 'Bypass',
               '-File', 'tools/validate-aiif.ps1',
@@ -63,11 +63,11 @@ jobs:
             )
 
             if ($StrictShould) {
-              $args += '-StrictShould'
+              $argList += '-StrictShould'
             }
 
-            & pwsh @args | Out-Host
-            return [int]$LASTEXITCODE
+            $proc = Start-Process -FilePath 'pwsh' -ArgumentList $argList -NoNewWindow -Wait -PassThru
+            return [int]$proc.ExitCode
           }
 
           $code = Invoke-AiifValidator -Aiif 'fixtures/validation/valid.aiif.json'
